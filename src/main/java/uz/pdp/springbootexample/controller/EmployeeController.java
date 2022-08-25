@@ -1,35 +1,40 @@
 package uz.pdp.springbootexample.controller;
 
 
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import uz.pdp.springbootexample.dto.EmployeeDto;
 import uz.pdp.springbootexample.entity.Employee;
 import uz.pdp.springbootexample.entity.Position;
+import uz.pdp.springbootexample.projection.EmployeeListProjection;
+import uz.pdp.springbootexample.service.AttachmentService;
 import uz.pdp.springbootexample.service.EmployeeService;
 import uz.pdp.springbootexample.service.PositionService;
 
-import javax.naming.Binding;
+import javax.servlet.http.HttpServletResponse;
 import javax.validation.Valid;
-import java.util.Arrays;
+import java.io.IOException;
 import java.util.List;
 
 @Controller
 @RequestMapping("/employees")
 public class EmployeeController {
 
-
     private final PositionService positionService;
     private final EmployeeService employeeService;
+    private final AttachmentService attachmentService;
 
     public EmployeeController(
             PositionService positionService,
-            EmployeeService employeeService
-    ) {
+            EmployeeService employeeService,
+            AttachmentService attachmentService) {
         this.positionService = positionService;
         this.employeeService = employeeService;
+        this.attachmentService = attachmentService;
     }
 
 
@@ -49,21 +54,26 @@ public class EmployeeController {
     }
 
 
-    @GetMapping
-    public String getAllEmployees() {
-        return "employee";
+
+    @GetMapping("/add")
+    public String showSignUpForm(EmployeeDto employeeDto) {
+        return "add-employee";
     }
 
 
     @PostMapping
-    public String saveEmployee(@Valid EmployeeDto employeeDto, BindingResult bindingResult) {
+    public String saveEmployee(@Valid EmployeeDto employeeDto, BindingResult bindingResult,@RequestParam("file") MultipartFile file) throws IOException {
         if (bindingResult.hasErrors()) {
-            System.out.println(bindingResult.getAllErrors());
+            return "add-employee";
         }
-        employeeService.saveEmployee(employeeDto);
-
+        Employee employee = employeeService.saveEmployee(employeeDto);
+        attachmentService.uploadFile(employee,file);
         return "redirect:/employees";
     }
+//    @GetMapping("/getFile/{id}")
+//    private void getFile(@PathVariable Integer id, HttpServletResponse response) throws IOException {
+//        attachmentService.getFileFromDb(id, response);
+//    }
 
     @GetMapping("/update/{id}")
     public String showUpdateForm(@PathVariable("id") Integer id, Model model) {
@@ -90,6 +100,24 @@ public class EmployeeController {
         Employee employee = employeeService.findId(id);
         employeeService.deleteEmployee(employee);
         return "redirect:/employees";
+    }
+    @GetMapping("")
+    public String viewHomePage(Model model) {
+        return findPaginated(1, model);
+    }
+
+    @GetMapping("/{pageNo}")
+    public String findPaginated(@PathVariable(value = "pageNo") int pageNo, Model model) {
+        int pageSize = 5;
+
+        Page<EmployeeListProjection> page = employeeService.findPaginated(pageNo, pageSize);
+        List < EmployeeListProjection > listEmployees = page.getContent();
+
+        model.addAttribute("currentPage", pageNo);
+        model.addAttribute("totalPages", page.getTotalPages());
+        model.addAttribute("totalItems", page.getTotalElements());
+        model.addAttribute("listEmployees", listEmployees);
+        return "employee";
     }
 
 
